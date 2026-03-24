@@ -1,0 +1,7 @@
+<Solution>
+  <Configurations>
+    <Platform Name="x64" />
+    <Platform Name="x86" />
+  </Configurations>
+  <Project Path="ChessEngine.vcxproj" Id="260add24-bc45-47de-916d-4c1e5a5d80d7" />
+</Solution>
