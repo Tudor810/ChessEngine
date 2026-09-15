@@ -1,127 +1,111 @@
 #include "Position.h"
-#include "MoveGenerator.h"
+#include "Search.h"
+#include "Zobrist.h"
 
-Position pos("r4rk1/1pp1qppp/p1np1n2/2b1p1B1/2B1P1b1/P1NP1N2/1PP1QPPP/R4RK1 w - - 0 10");
-MoveGenerator generator;
+#include <sstream>
+#include <string>
+#include <iostream>
+#include <memory>
+
 
 // Helper to convert piece constants to characters
-char getPieceChar(int piece) {
-	// This assumes 0 = Empty, Positive = White, Negative = Black
-	// Adjust based on your specific enum/constants
-	switch (piece) {
-	case PAWN: return 'P'; case KNIGHT: return 'N'; case BISHOP: return 'B';
-	case ROOK: return 'R'; case QUEEN: return 'Q'; case KING: return 'K';
-	default: return '.'; // Empty square
-	}
-}
 
-void printBoard() {
-	printf("\n  +---+---+---+---+---+---+---+---+\n");
+// Helper to convert "e2e4" into your internal Move integer
+Move parseUciMove(Position& pos, std::string moveStr) {
+	MoveList list;
+	MoveGenerator moveGen;
+	moveGen.genAllMoves(pos, list);
 
-	// Chess boards are printed from Rank 8 down to Rank 1
-	for (int rank = 7; rank >= 0; rank--) {
-		printf("%d |", rank + 1); // Print rank number
-
-		for (int file = 0; file < 8; file++) {
-			// Calculate index: (rank * 8) + file for 64-slot array
-			int square = rank * 8 + file;
-			int piece = pos.pieceOnBoard(square);
-
-			printf(" %d |", piece);//getPieceChar(piece));
+	for (int i = 0; i < list.size(); i++) {
+		Move m = list[i];
+		if (MoveUtils::printMove(m) == moveStr) {
+			return m;
 		}
-		printf("\n  +---+---+---+---+---+---+---+---+\n");
 	}
-	printf("    a   b   c   d   e   f   g   h\n\n");
+	return 0; // Invalid move
 }
-
-
-void printMove(Move move) {
-	// Get the raw integer squares
-	int fromSq = MoveUtils::getFrom(move);
-	int toSq = MoveUtils::getTo(move);
-	int piece = MoveUtils::getMovePiece(move);
-
-	// Calculate the characters for the algebraic notation
-	char fromFile = 'a' + (fromSq % 8);
-	char fromRank = '1' + (fromSq / 8);
-	char toFile = 'a' + (toSq % 8);
-	char toRank = '1' + (toSq / 8); 
-
-	// 3. Print your move info ALONG WITH the branch nodes
-	printf("%c%c%c%c: ", fromFile, fromRank, toFile, toRank);
-}
-U64 perft(int depth) {
-
-	MoveList moves;
-	U64 nodes = 0;
-
-	if (depth == 0) {
-		return C64(1);
-	}
-
-	generator.genAllMoves(pos, moves);
-
-	for (int i = 0; i < moves.size(); i++) {
-		//printMove(moves[i]);
-		//printf("\n");
-		pos.makeMove(moves[i]);
-		
-		if (!pos.isInCheck()) {
-			nodes += perft(depth - 1);
-		} 
-		pos.unmakeMove(moves[i]);
-	}
-
-	return nodes;
-}
-
-void perftDivide(int depth) {
-	if (depth == 0) {
-		return;
-	}
-
-	MoveList moves;
-	U64 totalNodes = 0; // Use U64 for the total to prevent overflow
-
-	generator.genAllMoves(pos, moves);
-
-
-	for (int i = 0; i < moves.size(); i++) {
-
-		pos.makeMove(moves[i]);
-
-		if (!pos.isInCheck()) {
-
-			U64 branchNodes = perft(depth - 1);
-
-			totalNodes += branchNodes;
-			printMove(moves[i]);
-			printf("%lld \n", branchNodes);
-				
-		}
-
-		pos.unmakeMove(moves[i]);
-	}
-
-	printf("\nTotal Nodes: %llu\n", totalNodes);
-}
-
-
-int main(int argc, char* argv[]) {
-	
+void uciLoop() {
+	Search engineBrain;
+	std::unique_ptr<Position> pos = std::make_unique<Position>("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
 	initMoveData();
 
-	U64 expectedValues[] = {
-		48, 2039, 97862, 4085603, 193690690, 8031647685};
+	std::string line;
 
-	//U64 nodes = perft(3);
-	//printf("%lld ", nodes);
-	//perftDivide(2);
+	while (std::getline(std::cin, line)) {
+		std::stringstream ss(line);
+		std::string token;
+		ss >> token;
 
-	for (int depth = 0; depth < 6; depth += 1) {
-		U64 nodes = perft(depth + 1);
-		printf("Depth: %d \t Expected Value = %lld, Real Value = %lld\n", depth + 1, expectedValues[depth], nodes);
+		if (token == "uci") {
+			std::cout << "uciok" << '\n';
+		}
+		else if (token == "isready") {
+			std::cout << "readyok" << '\n';
+		}
+		else if (token == "ucinewgame") {
+
+		}
+		else if (token == "position") {
+			std::string type;
+
+			ss >> type;
+			if (type == "startpos") {
+				pos = std::make_unique<Position>("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
+			}
+			else if (type == "fen") {
+				std::string fen = "";
+				for (int i = 0; i < 6; i++) {
+					std::string f;
+					ss >> f;
+					fen += f + " ";
+				}
+				pos = std::make_unique<Position>(fen);
+			}
+
+			std::string next;
+
+			ss >> next;
+			if (next == "moves") {
+				std::string moveStr;
+				while (ss >> moveStr) {
+					Move m = parseUciMove(*pos, moveStr);
+					pos -> makeMove(m);
+				}
+			}
+		}
+		else if (token == "go") {
+			short depth = 64;
+			long long wtime = INT_MAX, btime = INT_MAX, winc = 0, binc = 0;
+			std::string param;
+			while (ss >> param) {
+				if (param == "depth") ss >> depth;
+				if (param == "wtime") ss >> wtime;
+				if (param == "btime") ss >> btime;
+				if (param == "winc")  ss >> winc;
+				if (param == "binc")  ss >> binc;
+  			}
+
+			Color turn = pos->getSideToMove();
+			Move bestMove;
+
+			if(turn == WHITE) 
+				bestMove = engineBrain.getBestMove(*pos, depth, wtime, winc);
+			else 
+				bestMove = engineBrain.getBestMove(*pos, depth, btime, binc);
+
+			std::cout << "bestmove " << MoveUtils::printMove(bestMove) << "\n";
+		}
+		else if (token == "quit") {
+			break;
+		}
 	}
+}
+int main(int argc, char* argv[]) {
+	std::setvbuf(stdout, NULL, _IONBF, 0);
+
+	zobrist.init();
+
+	uciLoop();
 	return 0;
 }
 

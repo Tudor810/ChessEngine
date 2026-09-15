@@ -43,7 +43,16 @@ class Position
 		inline int getCastlingRights() const { return gameState & castleMask;  }
 		inline int getHalfMove() const { return (gameState >> 11) & halfMoveMask; }
 		inline int getFullMove() const { return (gameState >> 19) & fullMoveMask; }
-		inline int getPieceOnSquare(int index) const { return board[index]; }
+
+		inline int getPieceAt(int index) const {
+			return board[index];
+		}
+
+		inline int getPieceOnSquare(int index) const {
+			int p = board[index];
+			if (p == -1) return 6; // 6 is EMPTY
+			return p % 6;
+		}
 
 		inline void setSideToMove(Color c) {
 			gameState &= ~(1 << 18);
@@ -66,11 +75,18 @@ class Position
 			gameState |= (fullMove << 19);
 		}
 
-		inline int getKingSquare() const { return bitScanForward(getPieces((Color)(getSideToMove() ^ 1), KING)); }
+		inline int getKingSquare(int type) const { return bitScanForward(getPieces((Color)(getSideToMove() ^ type), KING)); }
 
 		bool isSquareAttacked(int sq, Color enemyColor) const;
-		inline bool isInCheck() const { return isSquareAttacked(getKingSquare(), getSideToMove()); }
-		inline int pieceOnBoard(int index) { return board[index]; }
+		inline bool isInCheck(int type) const { return isSquareAttacked(getKingSquare(type), (Color)(getSideToMove() ^ (1 ^ type))); }
+		
+		// Added for debugging
+		//void printChessBoard();
+
+		U64 generateZobristKey() const;
+
+		bool isDraw() const;
+
 		void makeMove(Move move);			
 		void unmakeMove(Move move);
 

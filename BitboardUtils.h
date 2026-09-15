@@ -8,6 +8,7 @@ const int castleMask = 0xF;
 const int halfMoveMask = 0x7F;
 const int fullMoveMask = 0x1FF;
 
+
 const U64 notAFile = C64(0xfefefefefefefefe); // Every bit except A-column
 const U64 notABFile = C64(0xfcfcfcfcfcfcfcfc); // Every bit except A, B - column
 const U64 notHFile = C64(0x7f7f7f7f7f7f7f7f); // Every bit except H-column
@@ -124,6 +125,12 @@ inline U64 diagonalMask(int sq) {
 	int diag = (sq & 7) - (sq >> 3);
 	return diag >= 0 ? maindia >> diag * 8 : maindia << -diag * 8;
 }
+
+namespace MailBoxUtils {
+    inline int getColor(int piece) { return piece / 6; }
+    inline int getPiece(int piece) { return piece % 6; }
+}
+
 
 inline U64 antiDiagMask(int sq) {
 	const U64 maindia = C64(0x0102040810204080);

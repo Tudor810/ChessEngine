@@ -1,5 +1,6 @@
 #pragma once
 //Move.h 
+#include <string>
 
 namespace MoveFlag {
 
@@ -30,17 +31,42 @@ namespace MoveUtils {
     inline int getMovePiece(Move move) { return (move >> 16) & 0x7; }
     inline int getCapturePiece(Move move) { return (move >> 19) & 0x7; }
 
+    inline std::string printSquare(int sq) {
+        std::string s = "";
+        s += (char)('a' + (sq % 8));
+        s += (char)('1' + (sq / 8));
+        return s;
+    }
+
+    inline std::string printMove(Move m) {
+        if (m == 0) return "0000";
+        std::string moveStr = printSquare(getFrom(m)) + printSquare(getTo(m));
+
+        int flags = getFlags(m);
+        // UCI requires appending a letter for promotions
+        if (flags == MoveFlag::PromoteQueen || flags == MoveFlag::PromoteCaptureQueen) moveStr += 'q';
+        else if (flags == MoveFlag::PromoteRook || flags == MoveFlag::PromoteCaptureRook) moveStr += 'r';
+        else if (flags == MoveFlag::PromoteBishop || flags == MoveFlag::PromoteCaptureBishop) moveStr += 'b';
+        else if (flags == MoveFlag::PromoteKnight || flags == MoveFlag::PromoteCaptureKnight) moveStr += 'n';
+
+        return moveStr;
+    }
+
 };
 
 
 struct MoveList {
     Move moves[256]{};
+    int scores[256]{};
     int count = 0;
 
     inline void push(int from, int to, int flag, int movePiece, int capPiece) {
         moves[count++] = MoveUtils::encode(from, to, flag, movePiece, capPiece);
     }
 
-    inline Move operator[](int index) const { return moves[index]; }
+    inline void push(Move move) {
+        moves[count++] = move;
+    }
+    inline Move& operator[](int index) { return moves[index]; }
     int size() const { return count; }
 };

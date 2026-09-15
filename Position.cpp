@@ -1,7 +1,9 @@
 #include "Position.h"
-#include <sstream>
-#include <map>
+#include "Zobrist.h"
 
+#include <sstream>
+//#include <map>
+//#include <iostream> // Added for debugging 
 Position::Position(std::string fenString) {
 	
 	std::stringstream ss(fenString);
@@ -53,7 +55,7 @@ Position::Position(std::string fenString) {
 						default: break; 
 					}
 					if (pType != -1) {
-						board[square] = pType % 6;
+						board[square] = pType;
 						pieceBB[pType] |= C64(1) << square;
 						colorBB[pType / 6] |= C64(1) << square;
 						file++;
@@ -90,6 +92,8 @@ Position::Position(std::string fenString) {
 	} 
 
 	occupiedBB = colorBB[0] | colorBB[1];
+	zobristKey = generateZobristKey();
+
 }
 
 bool Position::isSquareAttacked(int sq, Color enemyColor) const {
@@ -116,12 +120,58 @@ bool Position::isSquareAttacked(int sq, Color enemyColor) const {
 	return false;
 }
 
+bool Position::isDraw() const {
+
+
+	// Half Move rule ( 50 moves without pawn move or capture) 
+
+	if (getHalfMove() >= 100) {
+		return true;
+	}
+
+	// Insufficient material rule 
+	if (getPieces(WHITE, PAWN) | getPieces(BLACK, PAWN) |
+		getPieces(WHITE, ROOK) | getPieces(BLACK, ROOK) |
+		getPieces(WHITE, QUEEN) | getPieces(BLACK, QUEEN)) {
+		// Do nothing, material is sufficient
+	}
+	else {
+		// Only Kings, Knights, and Bishops remain.
+		int whiteMinorCount = countSetBits(getPieces(WHITE, KNIGHT)) + countSetBits(getPieces(WHITE, BISHOP));
+		int blackMinorCount = countSetBits(getPieces(BLACK, KNIGHT)) + countSetBits(getPieces(BLACK, BISHOP));
+
+		if (std::abs(whiteMinorCount - blackMinorCount) <= 1) {
+			return true;
+		}
+	}
+
+
+	// Three fold repetition rule
+	int limit = gamePly - getHalfMove();
+
+	if (limit < 0) limit = 0;
+
+	for (int i = gamePly - 2; i >= limit; i -= 2) {
+		if (history[i].zobristKey == this->zobristKey) {
+			return true;
+		}
+	}
+
+	// Position not draw
+	return false;
+}
+
 void Position::makeMove(Move move) {
 
 
+	// Save the game state
 	history[gamePly].gameState = gameState;
 	history[gamePly].zobristKey = zobristKey;
 	gamePly++;
+
+	int oldEp = getEnPassantSq();
+	zobristKey ^= zobrist.ep[(oldEp == -1) ? 64 : oldEp]; // Remove OLD EP
+	zobristKey ^= zobrist.castling[getCastlingRights()]; // Remove OLD Castling Rights
 
 	Color us = getSideToMove();
 	Color them = (Color)(us ^ 1);
@@ -139,19 +189,41 @@ void Position::makeMove(Move move) {
 	int capturePiece = MoveUtils::getCapturePiece(move);
 	int flags = MoveUtils::getFlags(move);
 
+	// Handling regular moves 
+
 	pieceBB[movePiece + idxUs] ^= fromToBB;
 	colorBB[us] ^= fromToBB;	
 	board[to] = board[from];
 	board[from] = -1;
 
+	zobristKey ^= zobrist.pieces[movePiece + idxUs][from]; // Remove piece from
+	zobristKey ^= zobrist.pieces[movePiece + idxUs][to]; // Add piece to
+
+
+	// Handling regular captures
 	if (capturePiece != EMPTY) {
 		pieceBB[capturePiece + idxThem] ^= toBB;
 		colorBB[them] ^= toBB;
+		zobristKey ^= zobrist.pieces[capturePiece + idxThem][to]; // Remove captured piece
 	}
 	
 	setEnPassantSq(64);
 	int castlingRights = getCastlingRights();
 
+
+	// Half Move and Full Move logic 
+
+	if (movePiece == PAWN || capturePiece != EMPTY) {
+		setHalfMove(0);
+	}
+	else {
+		setHalfMove(getHalfMove() + 1);
+	}
+
+	if (us == BLACK) {
+		setFullMove(getFullMove() + 1);
+	}
+	// Special Moves Logic 
 	switch (flags) {
 
 		case MoveFlag::EnPassant: {
@@ -160,6 +232,7 @@ void Position::makeMove(Move move) {
 			pieceBB[PAWN + idxThem] ^= epBit;
 			colorBB[them] ^= epBit;
 			board[epSquare] = -1;
+			zobristKey ^= zobrist.pieces[PAWN + idxThem][epSquare]; // Remove en passant captured pawn
 			break;
 		}
 		case MoveFlag::KingCastle: {
@@ -167,8 +240,10 @@ void Position::makeMove(Move move) {
 				: ((C64(1) << H8) ^ (C64(1) << F8)); // H8 to F8
 			pieceBB[ROOK + idxUs] ^= rookFromTo;
 			colorBB[us] ^= rookFromTo;
-			board[(us == WHITE) ? F1 : F8] = ROOK;
+			board[(us == WHITE) ? F1 : F8] = ROOK + idxUs;
 			board[(us == WHITE) ? H1 : H8] = -1;
+			zobristKey ^= zobrist.pieces[ROOK + idxUs][(us == WHITE) ? H1 : H8]; // Remove rook from H
+			zobristKey ^= zobrist.pieces[ROOK + idxUs][(us == WHITE) ? F1 : F8]; // Add rook to F
 			break;
 		}
 
@@ -177,15 +252,19 @@ void Position::makeMove(Move move) {
 				: ((C64(1) << A8) ^ (C64(1) << D8)); // A8 to D8
 			pieceBB[ROOK + idxUs] ^= rookFromTo;
 			colorBB[us] ^= rookFromTo;
-			board[(us == WHITE) ? D1 : D8] = ROOK;
+			board[(us == WHITE) ? D1 : D8] = ROOK + idxUs;
 			board[(us == WHITE) ? A1 : A8] = -1;
+			zobristKey ^= zobrist.pieces[ROOK + idxUs][(us == WHITE) ? A1 : A8]; // Remove rook from A
+			zobristKey ^= zobrist.pieces[ROOK + idxUs][(us == WHITE) ? D1 : D8]; // Add rook to D
 			break;
 		}
 		case MoveFlag::PromoteCaptureQueen:
 		case MoveFlag::PromoteQueen: {
 			pieceBB[PAWN + idxUs] ^= toBB;
 			pieceBB[QUEEN + idxUs] ^= toBB;
-			board[to] = QUEEN;
+			board[to] = QUEEN + idxUs;
+			zobristKey ^= zobrist.pieces[PAWN + idxUs][to]; // Remove Pawn
+			zobristKey ^= zobrist.pieces[QUEEN + idxUs][to]; // Add Queen
 			break;
 		}
 		
@@ -193,7 +272,9 @@ void Position::makeMove(Move move) {
 		case MoveFlag::PromoteKnight: {
 			pieceBB[PAWN + idxUs] ^= toBB;
 			pieceBB[KNIGHT + idxUs] ^= toBB;
-			board[to] = KNIGHT;
+			board[to] = KNIGHT + idxUs;
+			zobristKey ^= zobrist.pieces[PAWN + idxUs][to]; // Remove Pawn
+			zobristKey ^= zobrist.pieces[KNIGHT + idxUs][to]; // Add Knight
 			break;
 		}
 
@@ -201,7 +282,9 @@ void Position::makeMove(Move move) {
 		case MoveFlag::PromoteBishop: {
 			pieceBB[PAWN + idxUs] ^= toBB;
 			pieceBB[BISHOP + idxUs] ^= toBB;
-			board[to] = BISHOP;
+			board[to] = BISHOP + idxUs;
+			zobristKey ^= zobrist.pieces[PAWN + idxUs][to]; // Remove Pawn
+			zobristKey ^= zobrist.pieces[BISHOP + idxUs][to]; // Add Bishop
 			break;
 		}
 
@@ -209,7 +292,9 @@ void Position::makeMove(Move move) {
 		case MoveFlag::PromoteRook: {
 			pieceBB[PAWN + idxUs] ^= toBB;
 			pieceBB[ROOK + idxUs] ^= toBB;
-			board[to] = ROOK;
+			board[to] = ROOK + idxUs;
+			zobristKey ^= zobrist.pieces[PAWN + idxUs][to]; // Remove Pawn
+			zobristKey ^= zobrist.pieces[ROOK + idxUs][to]; // Add Rook
 			break;
 		}
 
@@ -224,6 +309,12 @@ void Position::makeMove(Move move) {
 	setCastlingRights(castlingRights & CastlingMasks[to] & CastlingMasks[from]);
 
 	setSideToMove(them);
+
+	int newEp = getEnPassantSq();
+
+	zobristKey ^= zobrist.ep[(newEp == -1) ? 64 : newEp]; // add new ep
+	zobristKey ^= zobrist.castling[getCastlingRights()]; // add new castling 
+	zobristKey ^= zobrist.side; // add new side to move 
 }
 
 void Position::unmakeMove(Move move) {
@@ -250,8 +341,8 @@ void Position::unmakeMove(Move move) {
 	pieceBB[movePiece + idxUs] ^= fromToBB;
 	colorBB[us] ^= fromToBB;
 
-	board[from] = movePiece;
-	board[to] = (capturePiece == EMPTY) ? -1 : capturePiece;
+	board[from] = movePiece + idxUs;
+	board[to] = (capturePiece == EMPTY) ? -1 : capturePiece + idxThem;
 
 	if (capturePiece != EMPTY) {
 		pieceBB[capturePiece + idxThem] ^= toBB;
@@ -265,7 +356,7 @@ void Position::unmakeMove(Move move) {
 			U64 epBit = C64(1) << epSquare;
 			pieceBB[PAWN + idxThem] ^= epBit;
 			colorBB[them] ^= epBit;
-			board[epSquare] = PAWN;	
+			board[epSquare] = PAWN + idxThem;	
 			break;
 		}
 		case MoveFlag::KingCastle: {
@@ -273,7 +364,7 @@ void Position::unmakeMove(Move move) {
 				: ((C64(1) << H8) ^ (C64(1) << F8)); // H8 to F8
 			pieceBB[ROOK + idxUs] ^= rookFromTo;
 			colorBB[us] ^= rookFromTo;
-			board[(us == WHITE) ? H1 : H8] = ROOK;
+			board[(us == WHITE) ? H1 : H8] = ROOK + idxUs;
 			board[(us == WHITE) ? F1 : F8] = -1;
 			break;
 		}
@@ -282,8 +373,8 @@ void Position::unmakeMove(Move move) {
 			U64 rookFromTo = (us == WHITE) ? ((C64(1) << A1) ^ (C64(1) << D1))   // A1 to D1
 				: ((C64(1) << A8) ^ (C64(1) << D8)); // A8 to D8
 			pieceBB[ROOK + idxUs] ^= rookFromTo;
-			colorBB[us] ^= rookFromTo;
-			board[(us == WHITE) ? A1 : A8] = ROOK;
+			colorBB[us] ^= rookFromTo;	
+			board[(us == WHITE) ? A1 : A8] = ROOK + idxUs;
 			board[(us == WHITE) ? D1 : D8] = -1;
 			break;
 		}
@@ -321,3 +412,55 @@ void Position::unmakeMove(Move move) {
 	setSideToMove(us);
 
 }
+
+U64 Position::generateZobristKey() const {
+	U64 key = 0;
+	for (int sq = 0; sq < 64; sq++) {
+		int piece = board[sq];
+		if (piece != -1) key ^= zobrist.pieces[piece][sq];
+	}
+
+	if (getSideToMove() == BLACK) key ^= zobrist.side;
+
+	key ^= zobrist.castling[getCastlingRights()];
+	int epSq = getEnPassantSq();
+
+	key ^= zobrist.ep[(epSq == -1) ? 64 : epSq];
+
+	return key;
+}
+
+
+// Added for debugging 
+
+//void Position::printChessBoard() {
+//	// Mapping arrays based on IDs:
+//	// 0-5:   p, n, b, r, q, k (White)
+//	// 6-11:  P, N, B, R, Q, K (Black)
+//	char pieces[] = { 'p', 'n', 'b', 'r', 'q', 'k',
+//					 'P', 'N', 'B', 'R', 'Q', 'K' };
+//
+//	std::cout << "  +------------------------+\n";
+//
+//	// Loop from row 7 down to 0 to print from White's perspective (Rank 8 to 1)
+//	for (int i = 7; i >= 0; --i) {
+//		std::cout << (i + 1) << " |";
+//		for (int j = 0; j < 8; ++j) {
+//			int pieceId = MailBoxUtils::getPiece(this -> board[i * 8 + j]) + 6 * MailBoxUtils::getColor(this->board[i * 8 + j]);
+//
+//			if (pieceId == -1) {
+//				std::cout << "  .";
+//			}
+//			else if (pieceId >= 0 && pieceId <= 11) {
+//				std::cout << "  " << pieces[pieceId];
+//			}
+//			else {
+//				std::cout << "  ?"; // Fallback for invalid IDs
+//			}
+//		}
+//		std::cout << " |\n";
+//	}
+//
+//	std::cout << "  +------------------------+\n";
+//	std::cout << "     a  b  c  d  e  f  g  h\n";
+//}

@@ -2,6 +2,8 @@
 
 typedef unsigned long long  U64;
 #define C64(constantU64) constantU64##ULL
+constexpr auto ENEMY = 1;;
+constexpr auto ALLY  = 0;
 
 enum Color { WHITE = 0, BLACK = 1 };
 enum PieceType { PAWN, KNIGHT, BISHOP, ROOK, QUEEN, KING, EMPTY };

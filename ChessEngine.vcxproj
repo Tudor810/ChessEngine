@@ -128,16 +128,22 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="BitboardUtils.h" />
+    <ClInclude Include="Evaluate.h" />
     <ClInclude Include="Move.h" />
     <ClInclude Include="MoveGenerator.h" />
     <ClInclude Include="Position.h" />
+    <ClInclude Include="Search.h" />
     <ClInclude Include="Types.h" />
+    <ClInclude Include="Zobrist.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="BitboardUtils.cpp" />
+    <ClCompile Include="Evaluate.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="MoveGenerator.cpp" />
     <ClCompile Include="Position.cpp" />
+    <ClCompile Include="Search.cpp" />
+    <ClCompile Include="Zobrist.cpp" />
   </ItemGroup>
   <ItemGroup>
     <None Include="cpp.hint" />

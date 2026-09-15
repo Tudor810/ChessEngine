@@ -1,5 +1,6 @@
 #include "BitboardUtils.h"
 #include "Position.h"
+#include <random>
 
 U64 KnightAttacks[64];
 U64 KingAttacks[64];
