@@ -133,6 +133,7 @@
     <ClInclude Include="MoveGenerator.h" />
     <ClInclude Include="Position.h" />
     <ClInclude Include="Search.h" />
+    <ClInclude Include="TT.h" />
     <ClInclude Include="Types.h" />
     <ClInclude Include="Zobrist.h" />
   </ItemGroup>

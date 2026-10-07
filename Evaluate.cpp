@@ -9,8 +9,7 @@ namespace Evaluate {
 	const int QueenValue  = 900;
     const int KingValue   = 20000;
 
-    // Midgame Tables
-    const int mg_table[6][64] = {
+    const int MGTable[6][64] = {
         // PAWN
         {  0,   0,   0,   0,   0,   0,  0,   0,
           98, 134,  61,  95,  68, 126, 34, -11,
@@ -66,9 +65,7 @@ namespace Evaluate {
                   1,   7,  -8, -64, -43, -16,   9,   8,
                 -15,  36,  12, -54,   8, -28,  24,  14 }
     };
-
-    // Endgame Tables
-    const int eg_table[6][64] = {
+    const int EGTable[6][64] = {
         // PAWN
         {  0,   0,   0,   0,   0,   0,   0,   0,
          178, 173, 158, 134, 147, 132, 165, 187,
@@ -125,6 +122,9 @@ namespace Evaluate {
                  -53, -34, -21, -11, -28, -14, -24, -43 }
     };
 
+    const int MGValue[6] = { 82, 337, 365, 477, 1025, 0 };
+    const int EGValue[6] = { 94, 281, 297, 512,  936, 0 };
+
     const int PHASE_WEIGHT_KNIGHT = 1;
     const int PHASE_WEIGHT_BISHOP = 1;
     const int PHASE_WEIGHT_ROOK = 2;
@@ -148,19 +148,19 @@ namespace Evaluate {
         int mgScore = 0;
         int egScore = 0;
 
-        int gamePhase = TOTAL_PHASE;
+        int gamePhase = 0;
 
         int knights = countSetBits(pos.getPieces(WHITE, KNIGHT)) + countSetBits(pos.getPieces(BLACK, KNIGHT));
         int bishops = countSetBits(pos.getPieces(WHITE, BISHOP)) + countSetBits(pos.getPieces(BLACK, BISHOP));
         int rooks = countSetBits(pos.getPieces(WHITE, ROOK)) + countSetBits(pos.getPieces(BLACK, ROOK));
         int queens = countSetBits(pos.getPieces(WHITE, QUEEN)) + countSetBits(pos.getPieces(BLACK, QUEEN));
 
-        gamePhase -= knights * PHASE_WEIGHT_KNIGHT;
-        gamePhase -= bishops * PHASE_WEIGHT_BISHOP;
-        gamePhase -= rooks * PHASE_WEIGHT_ROOK;
-        gamePhase -= queens * PHASE_WEIGHT_QUEEN;
+        gamePhase += knights * PHASE_WEIGHT_KNIGHT;
+        gamePhase += bishops * PHASE_WEIGHT_BISHOP;
+        gamePhase += rooks * PHASE_WEIGHT_ROOK;
+        gamePhase += queens * PHASE_WEIGHT_QUEEN;
 
-        if (gamePhase < 0) gamePhase = 0;
+        if (gamePhase > TOTAL_PHASE) gamePhase = TOTAL_PHASE;
 
         for (int piece = PAWN; piece <= KING; piece++) {
 
@@ -169,8 +169,10 @@ namespace Evaluate {
             while (whiteBitboard) {
                 int sq = bitScanForward(whiteBitboard); 
 
-                mgScore += mg_table[piece][sq];
-                egScore += eg_table[piece][sq];
+                int tableSq = sq ^ 56;
+
+                mgScore += MGTable[piece][tableSq] + MGValue[piece];
+                egScore += EGTable[piece][tableSq] + EGValue[piece];
 
                 whiteBitboard &= (whiteBitboard - 1); // Clear the LSB
             }
@@ -180,11 +182,8 @@ namespace Evaluate {
             while (blackBitboard) {
                 int sq = bitScanForward(blackBitboard);
 
-                // FLIP THE SQUARE FOR BLACK! 
-                int flippedSq = sq ^ 56;
-
-                mgScore -= mg_table[piece][flippedSq];
-                egScore -= eg_table[piece][flippedSq];
+                mgScore -= MGTable[piece][sq] + MGValue[piece];
+                egScore -= EGTable[piece][sq] + EGValue[piece];
 
                 blackBitboard &= (blackBitboard - 1);
             }

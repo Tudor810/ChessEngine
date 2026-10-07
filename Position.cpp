@@ -96,6 +96,12 @@ Position::Position(std::string fenString) {
 
 }
 
+bool Position::hasNonPawnMaterial(Color sideToMove) const {
+	return (getPieces(sideToMove, KNIGHT) |
+		getPieces(sideToMove, BISHOP) |
+		getPieces(sideToMove, ROOK) |
+		getPieces(sideToMove, QUEEN)) != C64(0);
+}
 bool Position::isSquareAttacked(int sq, Color enemyColor) const {
 
 	Color us = (Color)(enemyColor ^ 1);
@@ -430,6 +436,33 @@ U64 Position::generateZobristKey() const {
 	return key;
 }
 
+void Position::make_null_move() {
+	history[gamePly].gameState = gameState;
+	history[gamePly].zobristKey = zobristKey;
+	gamePly++;
+
+	Color us = getSideToMove();
+	Color them = (Color)(us ^ 1);
+
+	int oldEp = getEnPassantSq();
+	zobristKey ^= zobrist.ep[(oldEp == -1) ? 64 : oldEp]; // Remove OLD EP
+	zobristKey ^= zobrist.ep[64];
+
+	setHalfMove(getHalfMove() + 1);
+	if (us == BLACK) {
+		setFullMove(getFullMove() + 1);
+	}
+
+	zobristKey ^= zobrist.side;
+	setSideToMove(them);
+	setEnPassantSq(-1);
+}
+
+void Position::unmake_null_move() {
+	gamePly--;
+	gameState = history[gamePly].gameState;
+	zobristKey = history[gamePly].zobristKey;
+}	
 
 // Added for debugging 
 

@@ -1,8 +1,10 @@
 #include "Search.h"
 #include "Evaluate.h"
+#include "TT.h"
 //#include <iostream> // Added for debugging
 
 
+TTEntry TT[TTSize];
 
 const int mvvLva[6][6] = {
 	{ 15, 25, 35, 45, 55, 0 }, // Pawn attacker
@@ -30,6 +32,7 @@ Move Search::getBestMove(Position& pos, short depth, long long remTime, long lon
 	
 	SearchStack* ss = &this->stack[0];
 	ss->ply = 0;
+	ss->currentMove = 1;
 
 	// Filter out illegal moves at the root first & establish a fallback move
 	MoveList legalRootMoves;
@@ -59,7 +62,7 @@ Move Search::getBestMove(Position& pos, short depth, long long remTime, long lon
 	}
 
 
-	scoreMoves(legalRootMoves);
+	scoreMoves(legalRootMoves, 0);
 	for (int i = 0; i < legalRootMoves.size() - 1; i++) {
 		int bestIndex = i;
 		for (int j = i + 1; j < legalRootMoves.size(); j++) {
@@ -70,6 +73,9 @@ Move Search::getBestMove(Position& pos, short depth, long long remTime, long lon
 		std::swap(legalRootMoves[i], legalRootMoves[bestIndex]);
 		std::swap(legalRootMoves.scores[i], legalRootMoves.scores[bestIndex]);
 	}
+
+
+	auto startTime = std::chrono::steady_clock::now();
 
 	for (int d = 1; d <= depth; d++) {
 
@@ -92,6 +98,21 @@ Move Search::getBestMove(Position& pos, short depth, long long remTime, long lon
 				alpha = score;
 				bestMoveThisDepth = legalRootMoves[i];
 			}
+		}
+
+		if (!this->stopSearch) {
+			auto currentTime = std::chrono::steady_clock::now();
+			long long elapsed_ms = std::chrono::duration_cast<std::chrono::milliseconds>(currentTime - startTime).count();
+
+			// Prevent division by zero
+			if (elapsed_ms == 0) elapsed_ms = 1;
+
+			// Use 1000LL to prevent integer overflow on fast searches
+			long long nps = (nodes * 1000LL) / elapsed_ms;
+
+			// Standard UCI format (Adding 'score cp' so your GUI shows the evaluation)
+			printf("info depth %d score cp %d time %lld nodes %d nps %lld\n",
+				d, alpha, elapsed_ms, nodes, nps);
 		}
 
 		if (this -> stopSearch) {
@@ -138,13 +159,45 @@ int Search::negamax(Position& pos, SearchStack* ss, int depth, int alpha, int be
 		return quiescence(pos, ss + 1, alpha, beta);
 	}
 
+	U64 zobristKey = pos.getZobristKey();
+	TTEntry crtEntry = TT[zobristKey % TTSize];
+	Move firstMove = 0;
 
+	if (zobristKey == crtEntry.key) { // The position was already processed
+		firstMove = crtEntry.bestMove;
+		if (crtEntry.depth >= depth) {
+			if (crtEntry.flag == FLAG_EXACT)
+				return crtEntry.score;
+			if (crtEntry.flag == FLAG_ALPHA && crtEntry.score <= alpha)
+				return alpha;
+			if (crtEntry.flag == FLAG_BETA && crtEntry.score >= beta)
+				return beta;
+		}
+	}
+
+	bool allowNull = (ss - 1)->currentMove != MoveUtils::MOVE_NULL;
+	if (allowNull && depth >= 3 && !pos.isInCheck(ALLY) && pos.hasNonPawnMaterial(pos.getSideToMove())) {
+		int r = 2 + depth / 4;
+
+		ss->currentMove = MoveUtils::MOVE_NULL;
+		pos.make_null_move();
+		int score = -negamax(pos, ss + 1, depth - r - 1, -beta, -beta + 1);
+		pos.unmake_null_move();
+
+		if (this->stopSearch) return 0;
+
+		if (score >= beta) {
+			return beta;
+		}
+	}
 	MoveList moves;
 	moveGen.genAllMoves(pos, moves);
 
-	scoreMoves(moves);
+	scoreMoves(moves, firstMove);
 
 	int legalMoves = 0;
+	int originalAlpha = alpha;
+	Move bestMoveInNode = 0;  
 
 	for (int i = 0; i < moves.size(); i++) {
 
@@ -168,14 +221,22 @@ int Search::negamax(Position& pos, SearchStack* ss, int depth, int alpha, int be
 		legalMoves++;
 		nodes++;
 
+
+		ss->currentMove = moves[i];
 		int score = -negamax(pos, ss + 1, depth - 1, -beta, -alpha);
 		pos.unmakeMove(moves[i]);
 
 		if (this->stopSearch) {
 			return 0;
 		}
-		if (score >= beta) return beta;
-		if (score > alpha) alpha = score;
+		if (score >= beta) {
+			TT[zobristKey % TTSize] = { zobristKey, beta, depth, FLAG_BETA, moves[i] };
+			return beta;
+		}
+		if (score > alpha) {
+			alpha = score;
+			bestMoveInNode = moves[i];
+		}
 	}
 
 	if (legalMoves == 0) {
@@ -183,6 +244,9 @@ int Search::negamax(Position& pos, SearchStack* ss, int depth, int alpha, int be
 		
 		return 0; // Stalemate
 	}
+
+	TTFlag finalFlag = (alpha > originalAlpha) ? FLAG_EXACT : FLAG_ALPHA;
+	TT[zobristKey % TTSize] = { zobristKey, alpha, depth, finalFlag, bestMoveInNode };
 
 	return alpha;
 }
@@ -248,11 +312,16 @@ int Search::quiescence(Position& pos, SearchStack* ss, int alpha, int beta) {
 }
 
 
-void Search::scoreMoves(MoveList& moves) {
+void Search::scoreMoves(MoveList& moves, Move firstMove) {
 	for (int i = 0; i < moves.size(); i++) {
+
+
 		Move m = moves[i];
 		int score = 0;
 
+		if (firstMove != 0 && moves[i] == firstMove) {
+			score += 1000000;
+		}
 		int capturePiece = MoveUtils::getCapturePiece(m);
 		int movePiece = MoveUtils::getMovePiece(m);
 

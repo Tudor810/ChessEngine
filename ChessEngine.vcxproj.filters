@@ -39,6 +39,9 @@
     <ClInclude Include="Zobrist.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="TT.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Position.cpp">

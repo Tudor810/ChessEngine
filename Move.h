@@ -21,6 +21,8 @@ namespace MoveFlag {
 };
 
 namespace MoveUtils {
+
+    constexpr Move MOVE_NULL = 0;
     inline Move encode(int from, int to, int flags, int movePiece, int capPiece) {
         return from | (to << 6) | (flags << 12) | (movePiece << 16) | (capPiece << 19);
     }

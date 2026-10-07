@@ -24,7 +24,7 @@ private:
 
 	int negamax(Position& pos, SearchStack* ss, int depth, int alpha, int beta);
 	int quiescence(Position& pos, SearchStack* ss, int alpha, int beta);
-	void scoreMoves(MoveList& moves);
+	void scoreMoves(MoveList& moves, Move firstMove);
 	
 public: 
 	Search() = default;

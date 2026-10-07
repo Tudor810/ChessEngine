@@ -43,6 +43,7 @@ class Position
 		inline int getCastlingRights() const { return gameState & castleMask;  }
 		inline int getHalfMove() const { return (gameState >> 11) & halfMoveMask; }
 		inline int getFullMove() const { return (gameState >> 19) & fullMoveMask; }
+		inline U64 getZobristKey() const { return zobristKey; }
 
 		inline int getPieceAt(int index) const {
 			return board[index];
@@ -85,10 +86,14 @@ class Position
 
 		U64 generateZobristKey() const;
 
+		bool hasNonPawnMaterial(Color sideToMove) const;
 		bool isDraw() const;
 
 		void makeMove(Move move);			
 		void unmakeMove(Move move);
+
+		void make_null_move();
+		void unmake_null_move();
 
 };
 
