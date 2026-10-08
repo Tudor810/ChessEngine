@@ -1,7 +1,7 @@
 #pragma once
-#include "Position.h"
-#include "BitboardUtils.h"
-#include "Move.h"
+#include "board/Position.h"
+#include "core/BitboardUtils.h"
+#include "core/Move.h"
 
 
 class MoveGenerator {

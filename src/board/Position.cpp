@@ -1,5 +1,5 @@
-#include "Position.h"
-#include "Zobrist.h"
+#include "board/Position.h"
+#include "core/Zobrist.h"
 
 #include <sstream>
 //#include <map>

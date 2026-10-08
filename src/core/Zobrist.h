@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Types.h"
+#include "core/Types.h"
 
 struct ZobristKeys {
     U64 pieces[12][64];

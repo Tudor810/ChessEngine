@@ -361,3 +361,7 @@ MigrationBackup/
 
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
+## CMake build folders (Visual Studio "Open Folder" uses out/)
+build/
+out/
+CMakeUserPresets.json

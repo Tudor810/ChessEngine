@@ -1,5 +1,5 @@
-#include "BitboardUtils.h"
-#include "Position.h"
+#include "core/BitboardUtils.h"
+#include "board/Position.h"
 #include <random>
 
 U64 KnightAttacks[64];

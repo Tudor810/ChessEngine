@@ -1,5 +1,5 @@
-#include "Evaluate.h"
-#include "BitboardUtils.h"
+#include "eval/Evaluate.h"
+#include "core/BitboardUtils.h"
 
 namespace Evaluate {
 	const int PawnValue   = 100;

@@ -1,4 +1,4 @@
-#include "Zobrist.h"
+#include "core/Zobrist.h"
 #include <random>
 
 ZobristKeys zobrist;

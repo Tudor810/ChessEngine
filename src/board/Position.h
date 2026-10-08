@@ -1,8 +1,8 @@
 #pragma once
 
-#include "Types.h"
-#include "BitboardUtils.h"
-#include "Move.h"
+#include "core/Types.h"
+#include "core/BitboardUtils.h"
+#include "core/Move.h"
 #include <string>
 
 

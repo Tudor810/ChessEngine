@@ -1,6 +1,9 @@
-#include "Search.h"
-#include "Evaluate.h"
-#include "TT.h"
+#include "search/Search.h"
+#include "eval/Evaluate.h"
+#include "search/TT.h"
+
+#include <climits>
+#include <cstdlib>
 //#include <iostream> // Added for debugging
 
 

@@ -1,7 +1,7 @@
 #pragma once
 
 #include <bit>
-#include "Types.h"
+#include "core/Types.h"
 
 const int epMask = 0x7F;
 const int castleMask = 0xF;
@@ -115,7 +115,7 @@ inline U64 wSinglePushTargets(U64 wpawns, U64 empty) { return nortOne(wpawns) & 
 inline U64 bSinglePushTargets(U64 bpawns, U64 empty) { return soutOne(bpawns) & empty; }
 
 inline int bitScanForward(U64 bb) { return std::countr_zero(bb); }
-inline int countSetBits(U64 bb) { return __popcnt64(bb); }
+inline int countSetBits(U64 bb) { return std::popcount(bb); }
 
 inline U64 rankMask(int sq) { return C64(0xFF) << (sq & 56); }
 inline U64 fileMask(int sq) { return C64(0x0101010101010101) << (sq & 7); }

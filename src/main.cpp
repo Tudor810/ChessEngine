@@ -1,7 +1,8 @@
-#include "Position.h"
-#include "Search.h"
-#include "Zobrist.h"
+#include "board/Position.h"
+#include "search/Search.h"
+#include "core/Zobrist.h"
 
+#include <climits>
 #include <sstream>
 #include <string>
 #include <iostream>

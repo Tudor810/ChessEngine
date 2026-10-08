@@ -1,4 +1,4 @@
-#include "MoveGenerator.h"
+#include "movegen/MoveGenerator.h"
 
 void MoveGenerator::genPawnMoves(const Position& pos, MoveList& list) {
 	Color us = pos.getSideToMove();

@@ -1,5 +1,5 @@
 #pragma once
-#include "MoveGenerator.h"
+#include "movegen/MoveGenerator.h"
 #include <chrono>
 
 
