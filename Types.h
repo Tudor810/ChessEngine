@@ -26,6 +26,7 @@ struct StateInfo {
 	   bit 18: Side to move
 	   bit 19 - 31: FullMove
 	*/
+	int pliesFromNull = 0;
 	U64 zobristKey = 0;     // The 64-bit hash of the position
 };
 

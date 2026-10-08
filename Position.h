@@ -17,9 +17,11 @@ class Position
 	
 	StateInfo history[1024]{};
 	int gamePly = 0;
-
+	int pliesFromNull = 0;
 	int gameState;
+	
 	U64 zobristKey;
+
 	/* bits 0-3: Castling byte 0 - WK, byte 1 - WQ, byte 2 - BK, byte 3 - BQ
 	   bits 4-10: EP Square
 	   bits 11-17: Halfmove

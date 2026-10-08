@@ -18,6 +18,7 @@ const int mvvLva[6][6] = {
 namespace {
 	static constexpr int VALUE_MATED = -SHRT_MAX / 2; // -16383
 	static constexpr int VALUE_MATE = SHRT_MAX / 2; //  16383
+	static constexpr int VALUE_MATE_IN_MAX_PLY = VALUE_MATE - 256;
 }
 
 Move Search::getBestMove(Position& pos, short depth, long long remTime, long long incTime) {
@@ -85,9 +86,8 @@ Move Search::getBestMove(Position& pos, short depth, long long remTime, long lon
 
 		for (int i = 0; i < legalRootMoves.size(); i++) {
 
-			
-
 			pos.makeMove(legalRootMoves[i]);
+			ss->currentMove = legalRootMoves[i];
 			int score = -negamax(pos, ss + 1, d - 1, -beta, -alpha);
 			pos.unmakeMove(legalRootMoves[i]);
 	
@@ -108,10 +108,10 @@ Move Search::getBestMove(Position& pos, short depth, long long remTime, long lon
 			if (elapsed_ms == 0) elapsed_ms = 1;
 
 			// Use 1000LL to prevent integer overflow on fast searches
-			long long nps = (nodes * 1000LL) / elapsed_ms;
+			long long nps = (nodes * C64(1000)) / elapsed_ms;
 
 			// Standard UCI format (Adding 'score cp' so your GUI shows the evaluation)
-			printf("info depth %d score cp %d time %lld nodes %d nps %lld\n",
+			printf("info depth %d score cp %d time %lld nodes %lld nps %lld\n",
 				d, alpha, elapsed_ms, nodes, nps);
 		}
 
@@ -176,7 +176,10 @@ int Search::negamax(Position& pos, SearchStack* ss, int depth, int alpha, int be
 	}
 
 	bool allowNull = (ss - 1)->currentMove != MoveUtils::MOVE_NULL;
-	if (allowNull && depth >= 3 && !pos.isInCheck(ALLY) && pos.hasNonPawnMaterial(pos.getSideToMove())) {
+	if (allowNull && depth >= 3 && 
+		abs(beta) < VALUE_MATE_IN_MAX_PLY && 
+		!pos.isInCheck(ALLY) && 
+		pos.hasNonPawnMaterial(pos.getSideToMove())) {
 		int r = 2 + depth / 4;
 
 		ss->currentMove = MoveUtils::MOVE_NULL;
@@ -273,11 +276,14 @@ int Search::quiescence(Position& pos, SearchStack* ss, int alpha, int beta) {
 	if (eval >= beta) return beta;
 	if (eval > alpha) alpha = eval;
 
-	MoveList moves;
-	moveGen.genAllMoves(pos, moves);
-	
-	// sortMoves(moves) - implement for faster pruning
+	MoveList all, moves;
+	moveGen.genAllMoves(pos, all);
 
+	for (int i = 0; i < all.size(); i++) {
+		if (MoveUtils::getCapturePiece(all[i]) != EMPTY) 
+			moves.push(all[i]);
+	}
+	scoreMoves(moves, MoveUtils::MOVE_NULL);
 
 	for (int i = 0; i < moves.size(); i++) {
 
@@ -290,8 +296,6 @@ int Search::quiescence(Position& pos, SearchStack* ss, int alpha, int beta) {
 
 		std::swap(moves[i], moves[bestIndex]);
 		std::swap(moves.scores[i], moves.scores[bestIndex]);
-
-		if (MoveUtils::getCapturePiece(moves[i]) == EMPTY) continue;
 
 		pos.makeMove(moves[i]);
 
@@ -320,7 +324,8 @@ void Search::scoreMoves(MoveList& moves, Move firstMove) {
 		int score = 0;
 
 		if (firstMove != 0 && moves[i] == firstMove) {
-			score += 1000000;
+			moves.scores[i] = 1000000;
+			continue;
 		}
 		int capturePiece = MoveUtils::getCapturePiece(m);
 		int movePiece = MoveUtils::getMovePiece(m);

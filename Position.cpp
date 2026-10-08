@@ -153,7 +153,8 @@ bool Position::isDraw() const {
 
 
 	// Three fold repetition rule
-	int limit = gamePly - getHalfMove();
+	int lookback = getHalfMove() > pliesFromNull ? pliesFromNull : getHalfMove();
+	int limit = gamePly - lookback;
 
 	if (limit < 0) limit = 0;
 
@@ -173,7 +174,9 @@ void Position::makeMove(Move move) {
 	// Save the game state
 	history[gamePly].gameState = gameState;
 	history[gamePly].zobristKey = zobristKey;
+	history[gamePly].pliesFromNull = pliesFromNull;
 	gamePly++;
+	pliesFromNull++;
 
 	int oldEp = getEnPassantSq();
 	zobristKey ^= zobrist.ep[(oldEp == -1) ? 64 : oldEp]; // Remove OLD EP
@@ -328,6 +331,7 @@ void Position::unmakeMove(Move move) {
 	gamePly--;
 	gameState = history[gamePly].gameState;
 	zobristKey = history[gamePly].zobristKey;
+	pliesFromNull = history[gamePly].pliesFromNull;
 
 	Color us = getSideToMove();
 	Color them = (Color)(us ^ 1);
@@ -439,7 +443,9 @@ U64 Position::generateZobristKey() const {
 void Position::make_null_move() {
 	history[gamePly].gameState = gameState;
 	history[gamePly].zobristKey = zobristKey;
+	history[gamePly].pliesFromNull = pliesFromNull;
 	gamePly++;
+	pliesFromNull = 0;
 
 	Color us = getSideToMove();
 	Color them = (Color)(us ^ 1);
@@ -455,13 +461,14 @@ void Position::make_null_move() {
 
 	zobristKey ^= zobrist.side;
 	setSideToMove(them);
-	setEnPassantSq(-1);
+	setEnPassantSq(64);
 }
 
 void Position::unmake_null_move() {
 	gamePly--;
 	gameState = history[gamePly].gameState;
 	zobristKey = history[gamePly].zobristKey;
+	pliesFromNull = history[gamePly].pliesFromNull;
 }	
 
 // Added for debugging 
