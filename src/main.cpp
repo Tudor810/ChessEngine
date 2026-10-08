@@ -1,6 +1,7 @@
 #include "board/Position.h"
 #include "search/Search.h"
 #include "core/Zobrist.h"
+#include "search/TT.h"
 
 #include <climits>
 #include <sstream>
@@ -44,7 +45,7 @@ void uciLoop() {
 			std::cout << "readyok" << '\n';
 		}
 		else if (token == "ucinewgame") {
-
+			clearTT();
 		}
 		else if (token == "position") {
 			std::string type;

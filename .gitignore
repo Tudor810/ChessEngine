@@ -365,3 +365,4 @@ FodyWeavers.xsd
 build/
 out/
 CMakeUserPresets.json
+chessengine-compile-commands.bundle

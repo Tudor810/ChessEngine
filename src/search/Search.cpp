@@ -2,8 +2,7 @@
 #include "eval/Evaluate.h"
 #include "search/TT.h"
 
-#include <climits>
-#include <cstdlib>
+#include <cstring>
 //#include <iostream> // Added for debugging
 
 
@@ -22,6 +21,11 @@ namespace {
 	static constexpr int VALUE_MATED = -SHRT_MAX / 2; // -16383
 	static constexpr int VALUE_MATE = SHRT_MAX / 2; //  16383
 	static constexpr int VALUE_MATE_IN_MAX_PLY = VALUE_MATE - 256;
+}
+
+
+void clearTT() {
+	std::memset(TT, 0, sizeof(TT));   // needs <cstring>
 }
 
 Move Search::getBestMove(Position& pos, short depth, long long remTime, long long incTime) {
@@ -163,10 +167,12 @@ int Search::negamax(Position& pos, SearchStack* ss, int depth, int alpha, int be
 	}
 
 	U64 zobristKey = pos.getZobristKey();
-	TTEntry crtEntry = TT[zobristKey % TTSize];
+	TTEntry crtEntry = TT[zobristKey & (TTSize - 1)];
 	Move firstMove = 0;
 
-	if (zobristKey == crtEntry.key) { // The position was already processed
+	uint32_t check = (uint32_t)(zobristKey >> 32);
+
+	if (crtEntry.key == check) { // The position was already processed
 		firstMove = crtEntry.bestMove;
 		if (crtEntry.depth >= depth) {
 			if (crtEntry.flag == FLAG_EXACT)
@@ -236,7 +242,7 @@ int Search::negamax(Position& pos, SearchStack* ss, int depth, int alpha, int be
 			return 0;
 		}
 		if (score >= beta) {
-			TT[zobristKey % TTSize] = { zobristKey, beta, depth, FLAG_BETA, moves[i] };
+			TT[zobristKey & (TTSize - 1)] = {check, (int16_t)beta, (uint8_t)depth, FLAG_BETA, moves[i]};
 			return beta;
 		}
 		if (score > alpha) {
@@ -251,8 +257,12 @@ int Search::negamax(Position& pos, SearchStack* ss, int depth, int alpha, int be
 		return 0; // Stalemate
 	}
 
+	Move storeMove = bestMoveInNode;
+	if (storeMove == 0 && crtEntry.key == check) storeMove = crtEntry.bestMove;
+
 	TTFlag finalFlag = (alpha > originalAlpha) ? FLAG_EXACT : FLAG_ALPHA;
-	TT[zobristKey % TTSize] = { zobristKey, alpha, depth, finalFlag, bestMoveInNode };
+	TT[zobristKey & (TTSize - 1)] = {check, (int16_t)alpha, (uint8_t)depth, finalFlag, bestMoveInNode};
+
 
 	return alpha;
 }
@@ -347,3 +357,4 @@ void Search::scoreMoves(MoveList& moves, Move firstMove) {
 		moves.scores[i] = score;
 	}
 }
+
