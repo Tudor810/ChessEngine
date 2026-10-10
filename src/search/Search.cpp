@@ -23,6 +23,12 @@ namespace {
 	static constexpr int VALUE_MATE_IN_MAX_PLY = VALUE_MATE - 256;
 }
 
+static inline int scoreToTT(int s, int ply) {
+	return s > VALUE_MATE_IN_MAX_PLY ? s + ply : s < -VALUE_MATE_IN_MAX_PLY ? s - ply : s;
+}
+static inline int scoreFromTT(int s, int ply) {
+	return s > VALUE_MATE_IN_MAX_PLY ? s - ply : s < -VALUE_MATE_IN_MAX_PLY ? s + ply : s;
+}
 
 void clearTT() {
 	std::memset(TT, 0, sizeof(TT));   // needs <cstring>
@@ -175,8 +181,9 @@ int Search::negamax(Position& pos, SearchStack* ss, int depth, int alpha, int be
 	if (crtEntry.key == check) { // The position was already processed
 		firstMove = crtEntry.bestMove;
 		if (crtEntry.depth >= depth) {
+			int ttScore = scoreFromTT(crtEntry.score, ss->ply); // ply adjustment
 			if (crtEntry.flag == FLAG_EXACT)
-				return crtEntry.score;
+				return ttScore;
 			if (crtEntry.flag == FLAG_ALPHA && crtEntry.score <= alpha)
 				return alpha;
 			if (crtEntry.flag == FLAG_BETA && crtEntry.score >= beta)
@@ -242,7 +249,7 @@ int Search::negamax(Position& pos, SearchStack* ss, int depth, int alpha, int be
 			return 0;
 		}
 		if (score >= beta) {
-			TT[zobristKey & (TTSize - 1)] = {check, (int16_t)beta, (uint8_t)depth, FLAG_BETA, moves[i]};
+			TT[zobristKey & (TTSize - 1)] = {check, (int16_t)scoreToTT(beta, ss->ply, (uint8_t)depth, FLAG_BETA, moves[i]};
 			return beta;
 		}
 		if (score > alpha) {
@@ -259,9 +266,9 @@ int Search::negamax(Position& pos, SearchStack* ss, int depth, int alpha, int be
 
 	Move storeMove = bestMoveInNode;
 	if (storeMove == 0 && crtEntry.key == check) storeMove = crtEntry.bestMove;
-
+	
 	TTFlag finalFlag = (alpha > originalAlpha) ? FLAG_EXACT : FLAG_ALPHA;
-	TT[zobristKey & (TTSize - 1)] = {check, (int16_t)alpha, (uint8_t)depth, finalFlag, bestMoveInNode};
+	TT[zobristKey & (TTSize - 1)] = {check, (int16_t)scoreToTT(beta, ss->ply), (uint8_t)depth, finalFlag, storeMove};
 
 
 	return alpha;
