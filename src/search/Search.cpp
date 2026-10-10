@@ -47,6 +47,7 @@ Move Search::getBestMove(Position& pos, short depth, long long remTime, long lon
 	SearchStack* ss = &this->stack[0];
 	ss->ply = 0;
 	ss->currentMove = 1;
+	for (int i = 0; i < MAX_PLY; i++) stack[i].killers[0] = stack[i].killers[1] = 0;
 
 	// Filter out illegal moves at the root first & establish a fallback move
 	MoveList legalRootMoves;
@@ -76,7 +77,7 @@ Move Search::getBestMove(Position& pos, short depth, long long remTime, long lon
 	}
 
 
-	scoreMoves(legalRootMoves, 0);
+	scoreMoves(legalRootMoves, MoveUtils::MOVE_NULL, &stack[0]);
 	for (int i = 0; i < legalRootMoves.size() - 1; i++) {
 		int bestIndex = i;
 		for (int j = i + 1; j < legalRootMoves.size(); j++) {
@@ -184,9 +185,9 @@ int Search::negamax(Position& pos, SearchStack* ss, int depth, int alpha, int be
 			int ttScore = scoreFromTT(crtEntry.score, ss->ply); // ply adjustment
 			if (crtEntry.flag == FLAG_EXACT)
 				return ttScore;
-			if (crtEntry.flag == FLAG_ALPHA && crtEntry.score <= alpha)
+			if (crtEntry.flag == FLAG_ALPHA && ttScore <= alpha)
 				return alpha;
-			if (crtEntry.flag == FLAG_BETA && crtEntry.score >= beta)
+			if (crtEntry.flag == FLAG_BETA && ttScore >= beta)
 				return beta;
 		}
 	}
@@ -212,7 +213,7 @@ int Search::negamax(Position& pos, SearchStack* ss, int depth, int alpha, int be
 	MoveList moves;
 	moveGen.genAllMoves(pos, moves);
 
-	scoreMoves(moves, firstMove);
+	scoreMoves(moves, firstMove, ss);
 
 	int legalMoves = 0;
 	int originalAlpha = alpha;
@@ -249,7 +250,12 @@ int Search::negamax(Position& pos, SearchStack* ss, int depth, int alpha, int be
 			return 0;
 		}
 		if (score >= beta) {
-			TT[zobristKey & (TTSize - 1)] = {check, (int16_t)scoreToTT(beta, ss->ply, (uint8_t)depth, FLAG_BETA, moves[i]};
+
+			if (MoveUtils::isQuiet(moves[i]) && ss->killers[0] != moves[i]) {
+				ss->killers[1] = ss->killers[0];
+				ss->killers[0] = moves[i];
+			}
+			TT[zobristKey & (TTSize - 1)] = {check, (int16_t)scoreToTT(beta, ss->ply), (uint8_t)depth, FLAG_BETA, moves[i]};
 			return beta;
 		}
 		if (score > alpha) {
@@ -268,7 +274,7 @@ int Search::negamax(Position& pos, SearchStack* ss, int depth, int alpha, int be
 	if (storeMove == 0 && crtEntry.key == check) storeMove = crtEntry.bestMove;
 	
 	TTFlag finalFlag = (alpha > originalAlpha) ? FLAG_EXACT : FLAG_ALPHA;
-	TT[zobristKey & (TTSize - 1)] = {check, (int16_t)scoreToTT(beta, ss->ply), (uint8_t)depth, finalFlag, storeMove};
+	TT[zobristKey & (TTSize - 1)] = {check, (int16_t)scoreToTT(alpha, ss->ply), (uint8_t)depth, finalFlag, storeMove};
 
 
 	return alpha;
@@ -303,7 +309,7 @@ int Search::quiescence(Position& pos, SearchStack* ss, int alpha, int beta) {
 		if (MoveUtils::getCapturePiece(all[i]) != EMPTY) 
 			moves.push(all[i]);
 	}
-	scoreMoves(moves, MoveUtils::MOVE_NULL);
+	scoreMoves(moves, MoveUtils::MOVE_NULL, nullptr);
 
 	for (int i = 0; i < moves.size(); i++) {
 
@@ -336,7 +342,7 @@ int Search::quiescence(Position& pos, SearchStack* ss, int alpha, int beta) {
 }
 
 
-void Search::scoreMoves(MoveList& moves, Move firstMove) {
+void Search::scoreMoves(MoveList& moves, Move firstMove, const SearchStack* ss) {
 	for (int i = 0; i < moves.size(); i++) {
 
 
@@ -353,8 +359,9 @@ void Search::scoreMoves(MoveList& moves, Move firstMove) {
 		if (capturePiece != EMPTY) { // Its a capture
 			score = mvvLva[movePiece][capturePiece];
 		}
-		else { // score for quiet moves
-
+		else if(MoveUtils::isQuiet(m) && ss) { // score for quiet moves
+			if (m == ss->killers[0]) score = 9;
+			else if (m == ss->killers[1]) score = 8;
 		}
 
 		int flags = MoveUtils::getFlags(m);
