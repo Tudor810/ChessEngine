@@ -33,6 +33,7 @@ namespace MoveUtils {
     inline int getMovePiece(Move move) { return (move >> 16) & 0x7; }
     inline int getCapturePiece(Move move) { return (move >> 19) & 0x7; }
 
+    inline bool isQuiet(Move move) { return getFlags(move) <= MoveFlag::QueenCastle; }
     inline std::string printSquare(int sq) {
         std::string s = "";
         s += (char)('a' + (sq % 8));

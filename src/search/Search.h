@@ -6,6 +6,7 @@
 struct SearchStack {
 	int ply;
 	Move currentMove;
+	Move killers[2];
 };
 
 class Search {
@@ -24,7 +25,7 @@ private:
 
 	int negamax(Position& pos, SearchStack* ss, int depth, int alpha, int beta);
 	int quiescence(Position& pos, SearchStack* ss, int alpha, int beta);
-	void scoreMoves(MoveList& moves, Move firstMove);
+	void scoreMoves(MoveList& moves, Move firstMove, const SearchStack* ss);
 	
 public: 
 	Search() = default;
