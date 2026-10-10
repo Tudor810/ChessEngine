@@ -45,7 +45,7 @@ void uciLoop() {
 			std::cout << "readyok" << '\n';
 		}
 		else if (token == "ucinewgame") {
-			clearTT();
+			engineBrain.newGame();
 		}
 		else if (token == "position") {
 			std::string type;

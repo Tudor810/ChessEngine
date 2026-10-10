@@ -17,9 +17,6 @@ struct TTEntry {
 	Move bestMove;
 };
 
-
-void clearTT();
-
-const int TTSize = 2097152; // 32 MB
+const int TTSize = 2097152; // 24 MB
 extern TTEntry TT[TTSize];
 

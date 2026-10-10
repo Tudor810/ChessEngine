@@ -3,7 +3,6 @@
 #include "search/TT.h"
 
 #include <cstring>
-//#include <iostream> // Added for debugging
 
 
 TTEntry TT[TTSize];
@@ -21,6 +20,7 @@ namespace {
 	static constexpr int VALUE_MATED = -SHRT_MAX / 2; // -16383
 	static constexpr int VALUE_MATE = SHRT_MAX / 2; //  16383
 	static constexpr int VALUE_MATE_IN_MAX_PLY = VALUE_MATE - 256;
+	static constexpr int MAX_HISTORY = SHRT_MAX / 2;
 }
 
 static inline int scoreToTT(int s, int ply) {
@@ -30,12 +30,17 @@ static inline int scoreFromTT(int s, int ply) {
 	return s > VALUE_MATE_IN_MAX_PLY ? s - ply : s < -VALUE_MATE_IN_MAX_PLY ? s + ply : s;
 }
 
-void clearTT() {
-	std::memset(TT, 0, sizeof(TT));   // needs <cstring>
+void Search::newGame() {
+	std::memset(TT, 0, sizeof(TT)); // clear TT
+	std::memset(history, 0, sizeof(history)); // clear history
+}
+
+void Search::updateHistory(Color c, Move m, int bonus) {
+	int& h = history[c][MoveUtils::getFrom(m)][MoveUtils::getTo(m)];
+	h += bonus - h * std::abs(bonus) / MAX_HISTORY;
 }
 
 Move Search::getBestMove(Position& pos, short depth, long long remTime, long long incTime) {
-
 
 	// Initialization
 
@@ -77,7 +82,7 @@ Move Search::getBestMove(Position& pos, short depth, long long remTime, long lon
 	}
 
 
-	scoreMoves(legalRootMoves, MoveUtils::MOVE_NULL, &stack[0]);
+	scoreMoves(legalRootMoves, MoveUtils::MOVE_NULL, &stack[0], pos.getSideToMove());
 	for (int i = 0; i < legalRootMoves.size() - 1; i++) {
 		int bestIndex = i;
 		for (int j = i + 1; j < legalRootMoves.size(); j++) {
@@ -213,14 +218,16 @@ int Search::negamax(Position& pos, SearchStack* ss, int depth, int alpha, int be
 	MoveList moves;
 	moveGen.genAllMoves(pos, moves);
 
-	scoreMoves(moves, firstMove, ss);
+	scoreMoves(moves, firstMove, ss, pos.getSideToMove());
 
 	int legalMoves = 0;
 	int originalAlpha = alpha;
 	Move bestMoveInNode = 0;  
 
-	for (int i = 0; i < moves.size(); i++) {
+	Move quietsTried[64];
+	int nQuiets = 0;
 
+	for (int i = 0; i < moves.size(); i++) {
 
 		int bestIndex = i;
 		for (int j = i + 1; j < moves.size(); j++) {
@@ -251,9 +258,18 @@ int Search::negamax(Position& pos, SearchStack* ss, int depth, int alpha, int be
 		}
 		if (score >= beta) {
 
-			if (MoveUtils::isQuiet(moves[i]) && ss->killers[0] != moves[i]) {
-				ss->killers[1] = ss->killers[0];
-				ss->killers[0] = moves[i];
+			if (MoveUtils::isQuiet(moves[i])) {
+				if (ss->killers[0] != moves[i]) {
+					ss->killers[1] = ss->killers[0];
+					ss->killers[0] = moves[i];
+				}
+				
+				int bonus = depth * depth;
+				updateHistory((Color)pos.getSideToMove(), moves[i], bonus);
+
+				for (int k = 0; k < nQuiets; k++)
+					updateHistory((Color)pos.getSideToMove(), quietsTried[k], -bonus);
+
 			}
 			TT[zobristKey & (TTSize - 1)] = {check, (int16_t)scoreToTT(beta, ss->ply), (uint8_t)depth, FLAG_BETA, moves[i]};
 			return beta;
@@ -262,6 +278,9 @@ int Search::negamax(Position& pos, SearchStack* ss, int depth, int alpha, int be
 			alpha = score;
 			bestMoveInNode = moves[i];
 		}
+
+		if (MoveUtils::isQuiet(moves[i]) && nQuiets < 64)
+			quietsTried[nQuiets++] = moves[i];
 	}
 
 	if (legalMoves == 0) {
@@ -309,7 +328,7 @@ int Search::quiescence(Position& pos, SearchStack* ss, int alpha, int beta) {
 		if (MoveUtils::getCapturePiece(all[i]) != EMPTY) 
 			moves.push(all[i]);
 	}
-	scoreMoves(moves, MoveUtils::MOVE_NULL, nullptr);
+	scoreMoves(moves, MoveUtils::MOVE_NULL, nullptr, pos.getSideToMove());
 
 	for (int i = 0; i < moves.size(); i++) {
 
@@ -342,7 +361,7 @@ int Search::quiescence(Position& pos, SearchStack* ss, int alpha, int beta) {
 }
 
 
-void Search::scoreMoves(MoveList& moves, Move firstMove, const SearchStack* ss) {
+void Search::scoreMoves(MoveList& moves, Move firstMove, const SearchStack* ss, Color stm) {
 	for (int i = 0; i < moves.size(); i++) {
 
 
@@ -350,22 +369,24 @@ void Search::scoreMoves(MoveList& moves, Move firstMove, const SearchStack* ss) 
 		int score = 0;
 
 		if (firstMove != 0 && moves[i] == firstMove) {
-			moves.scores[i] = 1000000;
+			moves.scores[i] = 2000000;
 			continue;
 		}
 		int capturePiece = MoveUtils::getCapturePiece(m);
 		int movePiece = MoveUtils::getMovePiece(m);
 
-		if (capturePiece != EMPTY) { // Its a capture
-			score = mvvLva[movePiece][capturePiece];
-		}
+		int flags = MoveUtils::getFlags(m);
+		if (capturePiece != EMPTY)                 score = 1000000 + mvvLva[movePiece][capturePiece]; // score for captures
+		else if (flags == MoveFlag::EnPassant)     score = 1000000 + mvvLva[PAWN][PAWN]; // score for enpassant
+		else if (flags >= MoveFlag::PromoteKnight) score = 1000000; // score for promotions
 		else if(MoveUtils::isQuiet(m) && ss) { // score for quiet moves
-			if (m == ss->killers[0]) score = 9;
-			else if (m == ss->killers[1]) score = 8;
+			if (m == ss->killers[0])      score = 900000;
+			else if (m == ss->killers[1]) score = 800000;
+			else						  score = history[stm][MoveUtils::getFrom(m)][MoveUtils::getTo(m)];
 		}
 
-		int flags = MoveUtils::getFlags(m);
-		if (flags == MoveFlag::PromoteQueen || flags == MoveFlag::PromoteCaptureQueen) {
+
+		if (flags == MoveFlag::PromoteQueen || flags == MoveFlag::PromoteCaptureQueen) { // bonus for queen promotion
 			score += 80;
 		}
 		moves.scores[i] = score;
