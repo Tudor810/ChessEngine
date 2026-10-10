@@ -249,7 +249,7 @@ int Search::negamax(Position& pos, SearchStack* ss, int depth, int alpha, int be
 			return 0;
 		}
 		if (score >= beta) {
-			TT[zobristKey & (TTSize - 1)] = {check, (int16_t)scoreToTT(beta, ss->ply, (uint8_t)depth, FLAG_BETA, moves[i]};
+			TT[zobristKey & (TTSize - 1)] = {check, (int16_t)scoreToTT(beta, ss->ply), (uint8_t)depth, FLAG_BETA, moves[i]};
 			return beta;
 		}
 		if (score > alpha) {
